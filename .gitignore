@@ -9,3 +9,4 @@ __pycache__/
 employees.db
 sample-data/
 *.docx
+docs/*.md

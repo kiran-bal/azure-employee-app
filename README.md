@@ -116,7 +116,7 @@ employee-app/
   frontend/    React application
   database/    schema.sql
   deploy/      Nginx site config and systemd unit used on the VM
-docs/          Design notes and deployment guides
+docs/images/   Screenshots used in this README
 .github/       Static Web Apps deployment workflow
 ```
 
