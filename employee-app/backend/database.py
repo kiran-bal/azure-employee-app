@@ -1,8 +1,10 @@
 import os
+import time
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
@@ -21,7 +23,8 @@ if os.getenv("SQL_SERVER"):
         odbc += "Authentication=ActiveDirectoryMsi;"
 
     db_url = URL.create("mssql+pyodbc", query={"odbc_connect": odbc})
-    engine = create_engine(db_url, pool_pre_ping=True)
+    # timeout = login timeout in seconds; a paused serverless database needs time to resume
+    engine = create_engine(db_url, pool_pre_ping=True, connect_args={"timeout": 30})
 else:
     # local development without Azure SQL
     engine = create_engine("sqlite:///./employees.db", connect_args={"check_same_thread": False})
@@ -32,6 +35,16 @@ Base = declarative_base()
 
 def get_db():
     db = SessionLocal()
+    # retry the first connection: the serverless database may still be resuming from auto-pause
+    for attempt in range(3):
+        try:
+            db.connection()
+            break
+        except OperationalError:
+            db.close()
+            if attempt == 2:
+                raise
+            time.sleep(3)
     try:
         yield db
     finally:

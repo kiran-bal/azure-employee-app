@@ -1,8 +1,9 @@
 import os
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import IntegrityError
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 import storage
@@ -23,7 +24,17 @@ app.add_middleware(
 )
 
 # creates the Employees table if it is not already there
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except OperationalError:
+    # the database may be paused; the table already exists in Azure, so start anyway
+    pass
+
+
+@app.exception_handler(OperationalError)
+def database_unavailable(request: Request, exc: OperationalError):
+    # serverless Azure SQL pauses when idle and needs up to a minute to resume
+    return JSONResponse(status_code=503, content={"detail": "Database is starting, please try again shortly"})
 
 
 def get_employee_or_404(employee_id: int, db: Session):

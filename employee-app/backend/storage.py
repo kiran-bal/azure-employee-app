@@ -14,6 +14,7 @@ CONTAINER = os.getenv("BLOB_CONTAINER", "employee-files")
 SAS_MINUTES = 60
 
 _service = None
+_delegation_key = None
 
 
 def get_service():
@@ -59,6 +60,17 @@ def blob_name_from_url(url):
     return unquote(url.split(f"/{CONTAINER}/", 1)[1])
 
 
+def get_delegation_key(service):
+    """The key is valid for a few hours, so reuse it instead of requesting one per picture."""
+    global _delegation_key
+    now = datetime.now(timezone.utc)
+    if _delegation_key is None or _delegation_key[1] < now + timedelta(minutes=SAS_MINUTES + 5):
+        expiry = now + timedelta(hours=6)
+        key = service.get_user_delegation_key(now - timedelta(minutes=5), expiry)
+        _delegation_key = (key, expiry)
+    return _delegation_key[0]
+
+
 def read_url(blob_name):
     """The container is private, so files are served through a short-lived read-only SAS URL."""
     service = get_service()
@@ -67,8 +79,7 @@ def read_url(blob_name):
         signing = {"account_key": service.credential.account_key}
     else:
         # user delegation SAS: signed with the managed identity, no account key needed
-        start = datetime.now(timezone.utc) - timedelta(minutes=5)
-        signing = {"user_delegation_key": service.get_user_delegation_key(start, expiry)}
+        signing = {"user_delegation_key": get_delegation_key(service)}
 
     token = generate_blob_sas(
         account_name=service.account_name,

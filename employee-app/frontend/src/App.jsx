@@ -8,15 +8,17 @@ export default function App() {
   const [editing, setEditing] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [waking, setWaking] = useState(false)
 
   async function loadEmployees() {
     try {
-      setEmployees(await api.getEmployees())
+      setEmployees(await api.getEmployees(() => setWaking(true)))
       setError('')
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+      setWaking(false)
     }
   }
 
@@ -61,7 +63,7 @@ export default function App() {
       />
 
       {loading ? (
-        <p>Loading employees...</p>
+        <p>{waking ? 'Starting the database, this can take up to a minute...' : 'Loading employees...'}</p>
       ) : (
         <EmployeeList employees={employees} onEdit={setEditing} onDelete={handleDelete} />
       )}
