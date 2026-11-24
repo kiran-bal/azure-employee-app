@@ -19,7 +19,7 @@ documents.
 | Subnets | `snet-app`, `snet-private-endpoints` | 10.0.1.0/24, 10.0.2.0/24 |
 | Network security group | `nsg-app` | Associated with `snet-app` |
 | Virtual machine | `vm-employee-api` | Ubuntu 24.04, Standard_B2ats_v2, system-assigned managed identity |
-| Azure SQL | `sql-employee-kb2611` / `employeedb` | Serverless, Microsoft Entra-only authentication, public access disabled |
+| Azure SQL | `sql-employee-kb2611` / `employeedb` | Basic (5 DTU), Microsoft Entra-only authentication, public access disabled |
 | Private endpoint | `pe-sql` | In `snet-private-endpoints`, private IP 10.0.2.4 |
 | Private DNS zone | `privatelink.database.windows.net` | Linked to `vnet-employee` |
 | Storage account | `stemployeekb2611` | StorageV2, LRS, HTTPS only, TLS 1.2, anonymous access disabled |
@@ -68,7 +68,7 @@ documents.
 
 | Requirement | What was done |
 |---|---|
-| Create an Azure SQL Database | Server `sql-employee-kb2611`, database `employeedb` (serverless) |
+| Create an Azure SQL Database | Server `sql-employee-kb2611`, database `employeedb` (Basic tier, 5 DTU) |
 | Employee table | `EmployeeId` (identity PK), `EmployeeName`, `Email` (unique), `Department`, `ProfileImageUrl` – [schema.sql](employee-app/database/schema.sql) |
 | Connection from the API | ODBC Driver 18, `Encrypt=yes`, VM managed identity (no password); identity has `db_datareader` and `db_datawriter` only |
 | CRUD operations | `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` |
