@@ -1,0 +1,9 @@
+screenshots/
+.env
+*.pem
+.DS_Store
+node_modules/
+dist/
+venv/
+__pycache__/
+employees.db
