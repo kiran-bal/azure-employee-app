@@ -10,7 +10,6 @@ documents.
 | API (Azure VM, HTTPS) | https://employee-api-kb2611.centralindia.cloudapp.azure.com/api/health |
 | API reference (Swagger UI) | https://employee-api-kb2611.centralindia.cloudapp.azure.com/docs |
 
-Screenshots have the account email, subscription ID and object IDs blacked out.
 
 ## Azure resources (resource group `rg-employee-app`, region Central India)
 
