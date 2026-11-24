@@ -21,8 +21,8 @@ npm run dev
 ```
 
 In `backend/.env`, leave `SQL_SERVER` empty to use a local SQLite file. Adding and editing employees works
-without any Azure resource. Picture and document uploads need a real storage account connection string in
-`AZURE_STORAGE_CONNECTION_STRING`.
+without any Azure resource. Picture and document uploads need a storage account: locally set
+`AZURE_STORAGE_CONNECTION_STRING`; on Azure only `STORAGE_ACCOUNT_URL` is set and the managed identity is used.
 
 If `pip install` fails on `pyodbc` on a Mac, run `brew install unixodbc` first.
 
@@ -58,7 +58,7 @@ The backend is five small files. Read them in this order.
 
 | Function | What it does |
 |---|---|
-| `get_service()` | Creates the Blob client from the connection string |
+| `get_service()` | Creates the Blob client: connection string locally, managed identity on Azure |
 | `upload_file()` | Uploads bytes to a blob, sets the content type, returns the blob URL |
 | `delete_file()` / `delete_files()` | Deletes one blob / all blobs under a prefix |
 | `list_files()` | Lists blob names under a prefix (used for documents) |

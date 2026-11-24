@@ -72,33 +72,34 @@ Screenshot: the inbound rules list (the default rules at 65000+ show that everyt
 2. **Basics**:
    - Resource group `rg-employee-app`, name `vm-employee-api`, region Central India
    - Availability options: No infrastructure redundancy required
-   - Security type: Standard
+   - Security type: Trusted launch (default)
    - Image: **Ubuntu Server 24.04 LTS – x64 Gen2**
-   - Size: **Standard_B1s** (click "See all sizes" if not shown; on a free account it is marked as free
-     services eligible)
-   - Authentication type: **SSH public key**, username `azureuser`, key source: Generate new key pair,
-     key pair name `vm-employee-api_key`
+   - Size: a free-account size – **Standard_B1s**, or **Standard_B2ats_v2** if B1s shows "not available"
+     (this deployment used B2ats_v2 in Central India). Use "See all sizes" and search.
+   - Authentication type: **SSH public key**, username `azureuser`, key source **Use existing public key**,
+     paste the contents of a public key created on your Mac:
+     `ssh-keygen -t ed25519 -f ~/.ssh/azure_employee_vm` then `cat ~/.ssh/azure_employee_vm.pub`
    - Public inbound ports: **None** (the subnet NSG controls access)
-3. **Disks**: OS disk type Standard SSD or Premium SSD (both inside the free account allowance). Leave
+3. **Disks**: OS disk size **64 GiB (P6)**, type **Premium SSD** – exactly the free-account disk. Leave
    "Delete with VM" ticked.
 4. **Networking**:
    - Virtual network `vnet-employee`, subnet `snet-app`
    - Public IP: (new) – default is fine
    - NIC network security group: **None** (the subnet already has `nsg-app`)
    - Tick "Delete public IP and NIC when VM is deleted"
-5. **Management / Monitoring**: optionally turn on **Auto-shutdown** (for example 23:00) to save cost.
-6. **Review + create** → **Create** → **Download private key and create resource**. Keep the `.pem` file safe.
-7. Set a DNS name for the VM:
+5. **Management**: leave auto-shutdown off. 750 free hours a month covers running all month.
+6. **Review + create** → **Create**.
+7. Turn on the managed identity: VM → **Security → Identity** → System assigned **On** → **Save** → **Yes**.
+   Note the Object (principal) ID.
+8. Set a DNS name for the VM:
    - Open the VM → **Overview** → click the **Public IP address**.
-   - **Settings → Configuration**: Assignment **Static**, DNS name label `employee-api-<initials>` → **Save**.
+   - **Settings → Configuration**: DNS name label `employee-api-<initials>` → **Apply** (assignment is already Static).
    - The hostname is now `employee-api-<initials>.centralindia.cloudapp.azure.com`.
 
 Test the SSH connection from your Mac:
 
 ```bash
-mv ~/Downloads/vm-employee-api_key.pem ~/.ssh/
-chmod 400 ~/.ssh/vm-employee-api_key.pem
-ssh -i ~/.ssh/vm-employee-api_key.pem azureuser@employee-api-<initials>.centralindia.cloudapp.azure.com
+ssh -i ~/.ssh/azure_employee_vm azureuser@employee-api-<initials>.centralindia.cloudapp.azure.com
 ```
 
 ## Step 5 – Azure SQL Database (Task 4)
@@ -109,7 +110,8 @@ ssh -i ~/.ssh/vm-employee-api_key.pem azureuser@employee-api-<initials>.centrali
 3. **Basics**:
    - Resource group `rg-employee-app`, database name `employeedb`
    - Server: **Create new** → name `sql-employee-<initials>`, location Central India,
-     authentication **Use SQL authentication**, admin login `sqladmin`, a strong password → **OK**
+     authentication **Use Microsoft Entra-only authentication**; the Microsoft Entra admin is set to your
+     own account automatically → **OK**. No SQL password is created.
    - Want to use SQL elastic pool: No
    - Free offer: behaviour when free limit is reached → **Auto-pause the database until next month**
 4. Only if the free offer is not used: Workload environment Development → Compute + storage →
@@ -120,11 +122,17 @@ ssh -i ~/.ssh/vm-employee-api_key.pem azureuser@employee-api-<initials>.centrali
    - Add current client IP address: **Yes**
    - Connection policy: Default. Minimum TLS version: 1.2
 6. **Review + create** → **Create** (takes a few minutes).
-7. Create the table: open `employeedb` → **Query editor (preview)** → sign in with `sqladmin` and the
-   password → paste the contents of `employee-app/database/schema.sql` → **Run**.
-   Expand **Tables** to see `dbo.Employees`.
+7. Open `employeedb` → **Query editor** → **Connect as <your account>** → **New query**, paste and **Run**:
 
-(The API also creates the table at startup if it is missing.)
+   ```sql
+   CREATE TABLE Employees (EmployeeId INT IDENTITY(1,1) PRIMARY KEY, EmployeeName NVARCHAR(100) NOT NULL,
+     Email NVARCHAR(255) NOT NULL UNIQUE, Department NVARCHAR(100) NOT NULL, ProfileImageUrl NVARCHAR(500) NULL);
+   CREATE USER [vm-employee-api] FROM EXTERNAL PROVIDER;
+   ALTER ROLE db_datareader ADD MEMBER [vm-employee-api];
+   ALTER ROLE db_datawriter ADD MEMBER [vm-employee-api];
+   ```
+
+   The last three lines let the VM's managed identity log in and read/write data – nothing more.
 
 ## Step 6 – Private Endpoint and Private DNS for SQL (Task 5)
 
@@ -159,22 +167,23 @@ DNS zone record.
 3. **Advanced**:
    - Require secure transfer for REST API operations: **ticked**
    - Allow enabling anonymous access on individual containers: **not ticked**
-   - Enable storage account key access: **ticked** (the API uses the connection string)
+   - Enable storage account key access: leave ticked (used by the portal; the API uses its managed identity)
    - Minimum TLS version: **1.2**
    - Access tier: **Hot**
 4. **Networking**: Public access from all networks (the browser loads pictures directly with a SAS URL).
 5. **Review + create** → **Create**.
 6. Open the account → **Data storage → Containers** → **+ Add container** → name `employee-files`,
    anonymous access level **Private (no anonymous access)** → **Create**.
-7. **Security + networking → Access keys** → key1 **Connection string** → **Show** → copy it. It goes into the
-   API's `.env` file in the next step.
+7. **Access Control (IAM)** → **Add role assignment** → role **Storage Blob Data Contributor** → Members:
+   **Managed identity** → Virtual machine → `vm-employee-api` → **Review + assign**.
+   This lets the API upload, delete and sign SAS links without any account key.
 
 ## Step 8 – Install and run the API on the VM (Task 1)
 
 This step is done in the terminal; the portal has no equivalent. From your Mac, in the project folder:
 
 ```bash
-KEY=~/.ssh/vm-employee-api_key.pem
+KEY=~/.ssh/azure_employee_vm
 HOST=employee-api-<initials>.centralindia.cloudapp.azure.com
 
 ssh -i $KEY azureuser@$HOST "mkdir -p employee-app"
@@ -185,19 +194,26 @@ ssh -i $KEY azureuser@$HOST
 Then on the VM follow **sections 7 and 8 of `02-azure-deployment-guide.md`** exactly:
 
 - install Python, Nginx and the Microsoft ODBC Driver 18
+- add a 1 GB swap file (the VM has 1 GB RAM):
+  `sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`
+  and add `/swapfile none swap sw 0 0` to `/etc/fstab`
 - create the virtual environment and install `requirements.txt`
-- fill in `.env` – values from the portal:
+- create `.env` – it contains no secrets:
 
-  | `.env` setting | Where to find it |
-  |---|---|
-  | `SQL_SERVER` | SQL database → Overview → **Server name** |
-  | `SQL_DATABASE` | `employeedb` |
-  | `SQL_USER` / `SQL_PASSWORD` | Admin login and password from Step 5 |
-  | `AZURE_STORAGE_CONNECTION_STRING` | Storage account → Access keys (Step 7) |
-  | `BLOB_CONTAINER` | `employee-files` |
+  ```
+  SQL_SERVER=sql-employee-<initials>.database.windows.net
+  SQL_DATABASE=employeedb
+  STORAGE_ACCOUNT_URL=https://stemployee<initials>.blob.core.windows.net
+  BLOB_CONTAINER=employee-files
+  ALLOWED_ORIGINS=https://<static-web-app>.azurestaticapps.net
+  ```
+
+  Leaving `SQL_USER` empty makes the API use the managed identity for SQL; leaving the storage
+  connection string empty makes it use the managed identity for Blob Storage.
 
 - check `nslookup <server name>` returns a `10.0.2.x` address (if Step 6 was done)
-- start the systemd service, configure Nginx with your hostname, and run certbot for HTTPS
+- start the systemd service, configure Nginx with your hostname, and run certbot for HTTPS:
+  `sudo certbot --nginx -d <hostname> --redirect --agree-tos --register-unsafely-without-email`
 
 Check in a browser: `https://employee-api-<initials>.centralindia.cloudapp.azure.com/api/health`
 shows `{"status":"ok"}` with a padlock. `/docs` shows the API test page.

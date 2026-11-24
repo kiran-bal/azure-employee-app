@@ -38,7 +38,6 @@ Role needed on the subscription: **Owner** or **Contributor**.
 
 ### Things to prepare
 
-- A strong password for the SQL admin login
 - Your public IP (search "what is my ip") – for the SSH rule
 - An email address for the Let's Encrypt certificate
 - 3–5 sample employees, a few profile pictures (JPG/PNG under 5 MB), one or two PDFs
@@ -51,7 +50,7 @@ November 2026. They change by region and over time – confirm with the Azure Pr
 
 | Resource | Configuration | Pay-as-you-go / month | With free account |
 |---|---|---|---|
-| Virtual machine | B1s Linux (1 vCPU, 1 GB) | ≈ 7.60 | Free – 750 hours/month for 12 months |
+| Virtual machine | B1s or B2ats_v2 Linux (1 GB RAM) | ≈ 4.50–7.60 | Free – 750 hours/month for 12 months |
 | VM OS disk | 30–64 GB SSD | ≈ 2.50–5.00 | Free – 2 × 64 GB SSD for 12 months |
 | Public IP | Standard, static | ≈ 3.65 | Paid from credit |
 | Azure SQL Database | Free offer (serverless) | 0 | 0 – free for the life of the subscription |
@@ -81,7 +80,7 @@ For a typical evaluation (resources running 1–2 weeks) the real cost is about 
 **Yes, fully**, as long as it is done within the first 30 days.
 
 - Every service used is available on the free account.
-- The VM (B1s), disks, storage and SQL Database free offer cost nothing.
+- The VM (B1s or B2ats_v2), disks, storage and SQL Database free offer cost nothing.
 - The private endpoint, public IP and private DNS zone (≈ USD 11–12/month together) are paid from the USD 200
   credit – a small part of it.
 - The free account has a spending limit, so your card is **not charged** while it lasts.
@@ -92,8 +91,8 @@ Things to be aware of:
    upgrade to pay-as-you-go. If the evaluation could be after day 30, upgrade before then. After upgrading,
    the 12-month free services stay free; you pay only for what is outside the free amounts (≈ USD 11–12/month
    for this project).
-2. **Pick B1s exactly** for the VM. Other sizes are not free. If B1s is not available in your region, try
-   another region (for example East US, West Europe, South India).
+2. **Pick a free-account VM size**: B1s, B2ats_v2 (AMD) or B2pts_v2 (Arm). Other sizes are not free.
+   In Central India B1s was not offered to this subscription, so B2ats_v2 was used.
 3. **Use the SQL free offer exactly as described** in the portal guide (the "Apply offer" banner). When the
    monthly free compute is used up, the database pauses until next month instead of charging.
 4. The free account has a low vCPU quota (around 4 vCPUs per region). This project needs only 1.
@@ -104,7 +103,7 @@ Things to be aware of:
 ### Azure for Students
 
 Also covers this project. The USD 100 credit is more than enough. It has the same "disabled when credit runs
-out" behaviour, and B1s VM, storage and SQL free amounts also apply.
+out" behaviour, and the free VM sizes, storage and SQL free amounts also apply.
 
 ### Showing the work to the evaluator
 

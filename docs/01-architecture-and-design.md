@@ -51,7 +51,7 @@ An employee management application:
 | Subnet | `snet-app` | `10.0.1.0/24`, holds the VM |
 | Subnet | `snet-private-endpoints` | `10.0.2.0/24`, holds the SQL private endpoint |
 | NSG | `nsg-app` | Attached to `snet-app` |
-| Virtual machine | `vm-employee-api` | Ubuntu 24.04, Standard_B1s |
+| Virtual machine | `vm-employee-api` | Ubuntu 24.04, Standard_B2ats_v2 (free-account size; B1s was not available in the region) |
 | SQL server / database | `sql-employee-<unique>` / `employeedb` | Free offer (serverless), or Basic tier |
 | Storage account | `stemployee<unique>` | Standard LRS, container `employee-files` |
 | Static Web App | `swa-employee` | Free plan |
@@ -105,14 +105,16 @@ prefix.
 - NSG inbound: 443 and 80 from the internet (80 is only for the certificate challenge and the redirect to
   HTTPS), 22 only from my own IP. Everything else is denied by the default rules.
 - Azure SQL is reached through a Private Endpoint; its public network access is disabled.
-- Secrets (SQL password, storage connection string) are in a `.env` file on the VM, readable only by the
-  service user, and are not committed to Git.
+- No secrets are stored. The VM has a system-assigned managed identity. It signs in to Azure SQL with
+  Microsoft Entra (the SQL server allows Entra authentication only) and to Blob Storage with the
+  Storage Blob Data Contributor role. Picture links are user delegation SAS URLs signed with that identity.
+- The `.env` file on the VM only holds names and URLs (server, database, storage account URL, allowed origin).
 
 ## What I would add for production
 
 These were left out to keep the project small, but are worth mentioning in the review:
 
-- Managed Identity for the VM instead of a SQL password and storage key, with secrets in Azure Key Vault.
+- Turn off storage account key access completely (the app already does not use keys).
 - User login (Microsoft Entra ID) – the API currently has no authentication.
 - Private Endpoint for the storage account as well.
 - Azure Bastion instead of opening SSH, and an Application Gateway with WAF in front of the VM.

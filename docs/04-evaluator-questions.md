@@ -27,7 +27,8 @@ responsibility.
 ## Virtual machine and hosting (Task 1)
 
 **Why this VM size?**
-Standard_B1s (1 vCPU, 1 GB) is a burstable size, cheap and enough for a small API. It can be resized later.
+Standard_B2ats_v2 (2 vCPU, 1 GB) is a burstable size covered by the free account (750 hours a month), enough
+for a small API. B1s was not offered in the region. A 1 GB swap file was added because memory is small.
 
 **How is the API hosted?**
 Uvicorn runs the FastAPI app on `127.0.0.1:8000`. Nginx listens on 80/443 and forwards requests to it.
@@ -105,10 +106,10 @@ would give the browser a short-lived write SAS and upload directly.
 - The container is private, and public blob access is disabled on the whole account.
 - The browser gets a read-only SAS URL for one blob, valid for 60 minutes.
 - HTTPS only, minimum TLS 1.2, data encrypted at rest by default.
-- The account key is only on the VM in a `.env` file with restricted permissions.
-- Next steps: Managed Identity with a user delegation SAS (no account key at all), a private endpoint or
-  firewall on the storage account, Key Vault for secrets, soft delete, and Defender for Storage for malware
-  scanning.
+- The API uses the VM's managed identity (role: Storage Blob Data Contributor), so no account key is stored.
+- The SAS is a user delegation SAS, signed with the identity instead of the account key.
+- Next steps: disable account key access, a private endpoint or firewall on the storage account, soft
+  delete, and Defender for Storage for malware scanning.
 
 **What is a SAS token?**
 A signed query string that grants limited access (which blob, which permissions, until when) without
@@ -149,16 +150,18 @@ automatically and can pause when idle.
 Unicode names.
 
 **How does the API connect?**
-SQLAlchemy with pyodbc and Microsoft ODBC Driver 18. Server, database, user and password come from
-environment variables. `Encrypt=yes` forces TLS.
+SQLAlchemy with pyodbc and Microsoft ODBC Driver 18, using `Authentication=ActiveDirectoryMsi`: the driver
+gets a token for the VM's managed identity, so there is no username or password. The identity was added to
+the database with `CREATE USER [vm-employee-api] FROM EXTERNAL PROVIDER` and given only db_datareader and
+db_datawriter. `Encrypt=yes` forces TLS.
 
 **How do you prevent SQL injection?**
 All queries go through SQLAlchemy, which sends parameterised queries. User input is never concatenated
 into SQL.
 
-**Where is the password stored? Is that secure?**
-In a `.env` file on the VM, permission 600, not in Git. Better: Managed Identity so there is no password,
-or Key Vault.
+**Where is the password stored?**
+There is none. The SQL server uses Microsoft Entra-only authentication and the API signs in with the VM's
+managed identity. Nothing secret is in `.env` or in Git.
 
 **Why not store the image in the database?**
 Blob Storage is much cheaper for files, keeps the database small and fast, and files can be served
@@ -188,7 +191,7 @@ Restricted to my IP with key-based login. Better options are Azure Bastion or ju
 **How does the VM securely communicate with Azure SQL?** (asked directly in the task)
 Through a Private Endpoint. The SQL server gets a private IP (`10.0.2.x`) in the VNet, the VM connects to
 that over the Microsoft backbone, and public network access on the SQL server is disabled. The connection
-is also TLS-encrypted and authenticated. With Managed Identity even the password could be removed.
+is also TLS-encrypted and authenticated with the VM's managed identity (no password).
 
 **What is a Private Endpoint?**
 A network interface with a private IP in my VNet that connects to a specific PaaS resource using Azure
@@ -215,7 +218,7 @@ networks, and allows public access to be fully disabled; it has a small cost.
 SQL firewall rules allowing only the VM's public IP, or a VNet service endpoint rule.
 
 **Does the storage account also use a private endpoint?**
-Not in this build. The VM reaches it over HTTPS on the public endpoint with the account key, and the
+Not in this build. The VM reaches it over HTTPS on the public endpoint with its managed identity, and the
 browser needs to load images from it. For internal-only files I would add a private endpoint and its own
 DNS zone `privatelink.blob.core.windows.net`.
 
@@ -270,7 +273,7 @@ diagnostic logs.
 If asked what is missing, say it directly – it shows you understand the gaps:
 
 - No authentication on the API.
-- Secrets in a `.env` file rather than Managed Identity / Key Vault.
+- Storage account key access is still enabled (not used by the app, but could be turned off).
 - A single VM is a single point of failure.
 - Storage account is reachable on its public endpoint.
 - No automated tests or deployment pipeline for the backend.
